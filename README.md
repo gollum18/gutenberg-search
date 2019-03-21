@@ -8,7 +8,7 @@ Given a collection of N documents perform the following for each document in the
 1. Assign a document ID to the document.
 2. Initialize some structure to map terms and document ids to frequencies
 3. For each document in the collection:  
-  1. Initialize some structure to map terms to frequency.
+  1. Initialize some structure to map terms to frequency.  
   2. For each word in the document:  
     1. If the word is a stop word, then skip it (optional, but improves the speed/size of the index)  
     2. Otherwise, stem the word (since words like friends/friendly become friend, should be considered the same)  
@@ -17,7 +17,7 @@ Given a collection of N documents perform the following for each document in the
   3. For each word/frequency pair in the tf structure:  
     1. Extract the word and frequency  
     2. Write the word and document as the key and the frequency as the value in the structure made in step 2 way above.  
-  4. Write the term frequency structure to a datastore
+  4. Write the term frequency structure to a datastore  
 4. Sort the structure made in step 2, first lexicographically by the term, and then numerically by the document id.
 5. Write this structure to a datastore
 6. Flatten the structure by creating yet another structure to hold just the document id and frequency.
