@@ -1,3 +1,7 @@
+# custom, project gitignore stuff
+
+data/
+
 # .gitignore for python
 
 # Byte-compiled / optimized / DLL files
