@@ -1,3 +1,7 @@
+# ignore the data directory (it contains all of the eBooks in RDF/XML
+#  format, don't want to upload them to git as they are ~1GB in size
+data/
+
 # .gitignore for python
 
 # Byte-compiled / optimized / DLL files
