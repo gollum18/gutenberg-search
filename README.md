@@ -1,5 +1,5 @@
-# guttenberg-search
-Guttenberg Project search engine built using a multi-phase inverted index, tf.idf, and vector ranking to retrieve relevant books to their search query. This should be wrapped in a nice web front-end (probably in Node.js with Express/Pug), that functions similarly to Google or Bing, although since I despise CSS, it won't look as pretty.
+# gutenberg-search
+Gutenberg Project search engine built using a multi-phase inverted index, tf.idf, and vector ranking to retrieve relevant books to their search query. This should be wrapped in a nice web front-end (probably in Node.js with Express/Pug), that functions similarly to Google or Bing, although since I despise CSS, it won't look as pretty.
 
 ## inverted index?
 todo: explain what an inverted index is.
