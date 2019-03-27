@@ -41,6 +41,6 @@ def phase1_word_count():
             values.forEach(function(value) {
                 total += value;
             });
-            return total;
+            return {"term": key, "frequency": total};
         }
         ''')
