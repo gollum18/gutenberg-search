@@ -4,13 +4,23 @@
 # Description: Converts eBook text files from the Gutenberg Project into JSON strings, then uploads them into a MongoDB connection.
 
 import chardet
-import pymongo
 import os
 import stemming.porter2 as stemmer
 import string
 import sys
 
 from io import StringIO
+from pymongo import MongoClient
+
+# read in the stop words
+stop = []
+try:
+    with open('stop.txt') as f:
+        for line in f:
+            stop.append(f)
+except IOError:
+    print('Error: Unable to read in \'stop.txt\', are you sure it exists?')
+    sys.exit(5)
 
 # stores text->key mappings, where key is the key in the
 #   ebook dictionary and text is the way the key appears in the 
@@ -40,6 +50,7 @@ def get_bookid(filepath):
 alphabet = string.ascii_lowercase + string.digits + " " + "'"
 
 def get_ebook(filepath):
+    # TODO: Need to extract out key values that are split across lines
     rawdata = None
     with open(filepath, 'rb') as f:
         rawdata = f.read()
@@ -78,6 +89,8 @@ def get_ebook(filepath):
             line = ''.join([c for c in line if c in alphabet])
             # stem the words in the line
             for word in line.split(' '):
+                if word in stop:
+                    continue
                 stem = stemmer.stem(word)
                 if stem != '':
                     stems.append(stem)
@@ -86,8 +99,10 @@ def get_ebook(filepath):
     return ebook
 
 def write_ebooks(books, stemmings):
-    print('Books =', books)
-    pass
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client.pgb
+    db.books.insertMany(books)
+    db.stemmings.insertMany(stemmings)
 
 def main():
     data_dir = os.path.join('data', 'aleph.gutenberg.org')
@@ -113,3 +128,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
