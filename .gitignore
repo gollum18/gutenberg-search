@@ -210,5 +210,5 @@ typings/
 # DynamoDB Local files
 .dynamodb/
 
-# ignore data folder
+# ignore the data folder
 data/
