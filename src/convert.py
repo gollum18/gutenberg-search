@@ -7,37 +7,51 @@ import sys
 from io import StringIO
 from threading import Thread
 
-class EBookParser(Thread):
+# get a global stemmer object
+stemmer = snowballstemmer.stemmer('english')
 
-    # the various headers that appear in the ebook files
-    headers = {
-        'Title: ': 'title',
-        'Author: ': 'author',
-        'Translator ': 'translator',
-        'Last updated: ': 'last_updated',
-        # these two guys seem to be conflicting? some ebooks only contain
-        #   a release date, some a posting date, others both
-        # Its clear that the posting date is the date the book was 
-        #   publised on pg, but the release date either means the 
-        #   same thing or it is genuinely the release date of the book/work.
-        # this seems to be dependent on the time the book was released on
-        #   pg, at some point they must have underwent a format change 
-        #   between release/posting dates that did not propagate to their 
-        #   entire collection of ebooks leading to the inconsistency
-        #   between the meaning of the two dates
-        'Release Date: ': 'release_date',
-        'Posting Date: ': 'posting_date',
-        'Language: ': 'language',
-        # this is generally true, however some books marked ascii are 
-        #   actually encoded in iso-8859-1 (western), leading to the mess 
-        #   below that I use to catch them
-        'Character set encoding: ': 'char_set',
-        # this guy catches a typo I dont want to correct on the fly
-        'Chatacter set encoding: ': 'char_set',
-        # this guy is generally true but some texts announce the publisher 
-        #   slightly different
-        'Produced by ': 'publisher'
-    }
+# create a stemming alphabet, characters in words not this string are 
+#   are filtered out before the word is stemmed
+# the allowable alphabet is 'a-z', '0-9', and '-'
+alphabet = ''.join([string.ascii_lowercase, string.digits, '-'])
+
+# the various headers that appear in the ebook files
+headers = {
+    'Title: ': 'title',
+    'Author: ': 'author',
+    'Translator ': 'translator',
+    'Last updated: ': 'last_updated',
+    # these two guys seem to be conflicting? some ebooks only contain
+    #   a release date, some a posting date, others both
+    # Its clear that the posting date is the date the book was 
+    #   publised on pg, but the release date either means the 
+    #   same thing or it is genuinely the release date of the book/work.
+    # this seems to be dependent on the time the book was released on
+    #   pg, at some point they must have underwent a format change 
+    #   between release/posting dates that did not propagate to their 
+    #   entire collection of ebooks leading to the inconsistency
+    #   between the meaning of the two dates
+    'Release Date: ': 'release_date',
+    'Posting Date: ': 'posting_date',
+    'Language: ': 'language',
+    # this is generally true, however some books marked ascii are 
+    #   actually encoded in iso-8859-1 (western), leading to the mess 
+    #   below that I use to catch them
+    'Character set encoding: ': 'char_set',
+    # this guy catches a typo I dont want to correct on the fly
+    'Chatacter set encoding: ': 'char_set',
+    # this guy is generally true but some texts announce the publisher 
+    #   slightly different
+    'Produced by ': 'publisher'
+}
+
+'''
+Extracts the value from a line corresponding to a given key.
+'''
+def extract_value(key, line):
+    return line.strip(key).strip('\r\n')
+
+class EBookParser(Thread):
 
     '''
     Creates a new EBookParser thread that parses the ebook stored 
@@ -95,8 +109,37 @@ class EBookParser(Thread):
                     f.close()
             finally:
                 f.close()
+            # 0 = header, 1 = content, 2 = footer
+            state = 0
             for line in StringIO(raw_data):
-                print(line)
+                # check if we need to advance state
+                if line.startswith('*** START'):
+                    state = 1
+                    continue
+                elif line.startswith('*** END'):
+                    state = 2
+                    continue
+                # pull information from the header
+                if state == 0:
+                    for text_key, json_key in headers.items():
+                        if text_key in line:
+                            self.book[json_key] = extract_value(text_key, line)
+                # stem the content
+                elif state == 1:
+                    # get the words
+                    for word in line.split(' '):
+                        # remove all whitespace
+                        word = ''.join(word.split())
+                        # lowercase the word
+                        word = word.lower()
+                        # clean the word
+                        word = ''.join([c for c in word if c in alphabet])
+                        # strip white space
+                        # add the word to the stems list
+                        self.stems.append(stemmer.stemWord(word))
+                # ignore the footer
+                elif state == 2:
+                    break
         except IOError:
             print('An IOError occured processing file:', self.filename)
 
@@ -140,7 +183,6 @@ def main():
         t = EBookParser(f)
         t.start()
         t.join()
-        stems = ' '.join(t.stems)
 
 if __name__ == '__main__':
     main()
