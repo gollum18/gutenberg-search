@@ -1,5 +1,6 @@
 import pymongo
 import os
+import re
 import snowballstemmer
 import string
 import sys
@@ -46,10 +47,18 @@ headers = {
 }
 
 '''
+Extracts the bookid from a given filepath.
+'''
+def extract_bookid(filepath):
+    parts = filepath.split(os.path.sep)
+    bookid = parts[len(parts)-1].replace('.txt', '')
+    return bookid
+
+'''
 Extracts the value from a line corresponding to a given key.
 '''
 def extract_value(key, line):
-    return line.strip(key).strip('\r\n')
+    return line.replace(key, '').strip('\r\n')
 
 class EBookParser(Thread):
 
@@ -58,9 +67,9 @@ class EBookParser(Thread):
     at the specified filename.
         filename: The address of the book on disk.
     '''
-    def __init__(self, filename):
+    def __init__(self, filepath):
         Thread.__init__(self)
-        self.filename = filename
+        self.filepath = filepath
         # these can only be retrieved once the thread is dead
         #   check thread.is_alive() for false, otherwise youll be 
         #   dissapointed when querying these
@@ -90,25 +99,24 @@ class EBookParser(Thread):
         try:
             raw_data = None
             try:
-                f = open(self.filename)
+                f = open(self.filepath)
                 raw_data = f.read()
             except UnicodeDecodeError:
                 try:
-                    f = open(self.filename, encoding='ascii')
+                    f = open(self.filepath, encoding='ascii')
                     raw_data = f.read()
                 except UnicodeDecodeError:
                     try:
-                        f = open(self.filename, encoding='iso-8859-1')
+                        f = open(self.filepath, encoding='iso-8859-1')
                         raw_data = f.read()
                     except UnicodeDecodeError:
-                        print('Unknown encoding for:', self.filename)
+                        print('Unknown encoding for:', self.filepath)
                         return
-                    finally:
-                        f.close()
-                finally:
-                    f.close()
-            finally:
+            if f:
                 f.close()
+            # get the book id and filepath
+            self.book['bookid'] = extract_bookid(self.filepath)
+            self.book['filepath'] = self.filepath
             # 0 = header, 1 = content, 2 = footer
             state = 0
             for line in StringIO(raw_data):
@@ -128,13 +136,10 @@ class EBookParser(Thread):
                 elif state == 1:
                     # get the words
                     for word in line.split(' '):
-                        # remove all whitespace
-                        word = ''.join(word.split())
                         # lowercase the word
                         word = word.lower()
                         # clean the word
                         word = ''.join([c for c in word if c in alphabet])
-                        # strip white space
                         # add the word to the stems list
                         self.stems.append(stemmer.stemWord(word))
                 # ignore the footer
@@ -142,7 +147,8 @@ class EBookParser(Thread):
                     break
         except IOError:
             print('An IOError occured processing file:', self.filename)
-
+        # clear out the whitespace in the stems
+        self.stems = ' '.join(' '.join(self.stems).split())
 
 '''
 Generator function for lazily stepping through the ebook files.
@@ -179,10 +185,16 @@ def main():
         print('Error: Specified file is not a directory!')
         print_help()
         sys.exit(2)
+    # open mongodb client on default host and port
+    client = pymongo.MongoClient()
+    db = client.pgdb
     for f in get_files(sys.argv[1]):
         t = EBookParser(f)
         t.start()
         t.join()
+        db.books.insert_one(t.book)
+        db.stems.insert_one({'bookid':t.book['bookid'], 'stems':t.stems})
+    client.close()
 
 if __name__ == '__main__':
     main()
