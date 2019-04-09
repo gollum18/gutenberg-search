@@ -8,13 +8,18 @@ import sys
 from io import StringIO
 from threading import Thread
 
+import pg_funcs
+
+# create a trannslator for replacing punctuation with a space
+translator = str.maketrans({c:' ' for c in string.punctuation})
+
 # get a global stemmer object
 stemmer = snowballstemmer.stemmer('english')
 
 # create a stemming alphabet, characters in words not this string are 
 #   are filtered out before the word is stemmed
-# the allowable alphabet is 'a-z', '0-9', and '-'
-alphabet = ''.join([string.ascii_lowercase, string.digits, '-'])
+# the allowable alphabet is 'a-z'
+alphabet = string.ascii_lowercase
 
 # the various headers that appear in the ebook files
 headers = {
@@ -46,13 +51,7 @@ headers = {
     'Produced by ': 'publisher'
 }
 
-'''
-Extracts the bookid from a given filepath.
-'''
-def extract_bookid(filepath):
-    parts = filepath.split(os.path.sep)
-    bookid = parts[len(parts)-1].replace('.txt', '')
-    return bookid
+
 
 '''
 Extracts the value from a line corresponding to a given key.
@@ -115,7 +114,7 @@ class EBookParser(Thread):
             if f:
                 f.close()
             # get the book id and filepath
-            self.book['bookid'] = extract_bookid(self.filepath)
+            self.book['bookid'] = pg_funcs.extract_bookid(self.filepath)
             self.book['filepath'] = self.filepath
             # 0 = header, 1 = content, 2 = footer
             state = 0
@@ -134,6 +133,8 @@ class EBookParser(Thread):
                             self.book[json_key] = extract_value(text_key, line)
                 # stem the content
                 elif state == 1:
+                    # clean the line of all punctuation
+                    line = line.translate(translator)
                     # get the words
                     for word in line.split(' '):
                         # lowercase the word
@@ -149,16 +150,6 @@ class EBookParser(Thread):
             print('An IOError occured processing file:', self.filename)
         # clear out the whitespace in the stems
         self.stems = ' '.join(' '.join(self.stems).split())
-
-'''
-Generator function for lazily stepping through the ebook files.
-    root: the root directory that the ebook text files are stored in.
-'''
-def get_files(root):
-    for dirpath, dirnames, filenames in os.walk(root):
-        for filename in filenames:
-            if filename.endswith('.txt'):
-                yield dirpath + os.sep + filename
 
 def print_help():
     print('-'*80)
@@ -188,12 +179,16 @@ def main():
     # open mongodb client on default host and port
     client = pymongo.MongoClient()
     db = client.pgdb
-    for f in get_files(sys.argv[1]):
-        t = EBookParser(f)
+    for filename in pg_funcs.get_files(sys.argv[1]):
+        t = EBookParser(filename)
         t.start()
         t.join()
         db.books.insert_one(t.book)
-        db.stems.insert_one({'bookid':t.book['bookid'], 'stems':t.stems})
+        if not os.path.exists(os.path.join('data', 'stems')):
+            os.mkdir(os.path.join('data', 'stems'))
+        with open(os.path.join('data', 'stems', t.book['bookid']+'.txt'), 'w') as stemfile:
+            for stem in t.stems:
+                stemfile.write(stem)
     client.close()
 
 if __name__ == '__main__':

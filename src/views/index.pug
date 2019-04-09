@@ -1,5 +1,8 @@
 extends layout
 
 block content
-  h1= title
-  p Welcome to #{title}
+  h1=title
+  form(method='GET', action='/search')
+    label(for='txt_input') Query:
+    input(id='txt_input' type='search')
+    input(name='btn_submit' type='submit' autocomplete='on' formaction='/search' formmethod='get' formtarget='self' value='Search')
