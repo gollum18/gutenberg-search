@@ -7,7 +7,6 @@
 var app = require('../app');
 var debug = require('debug')('src:server');
 var http = require('http');
-var bodyParser = require('body-parser')
 
 /**
  * Get port from environment and store in Express.
@@ -15,11 +14,6 @@ var bodyParser = require('body-parser')
 
 var port = normalizePort(process.env.PORT || '3000');
 app.set('port', port);
-
-/**
- * Configure express addons.
- */
- app.use(bodyParser.urlencoded({ extended: true }));
 
 /**
  * Create HTTP server.

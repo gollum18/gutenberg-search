@@ -2,7 +2,8 @@ extends layout
 
 block content
   h1=title
-  form(method='GET', action='/search')
-    label(for='txt_input') Query:
-    input(id='txt_input' type='search')
-    input(name='btn_submit' type='submit' autocomplete='on' formaction='/search' formmethod='get' formtarget='self' value='Search')
+  form(method='get', action='/search' target="_self")
+    fieldset
+      label(for='querystr') Query:
+      input(id='querystr' name="querystr" type='search')
+      input(type='submit' autocomplete='on' formaction='/search' value='Search')

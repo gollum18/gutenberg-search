@@ -24,7 +24,7 @@ for filepath in pg_funcs.get_files(os.path.join('data', 'stems')):
             freq[word] += 1
     bookid = pg_funcs.extract_bookid(filepath)
     try:
-        db.freq.insert_one({'bookid':bookid, 'terms':freq})
+        db.freqs.insert_one({'bookid':bookid, 'terms':freq})
     except pymongo.errors.PyMongoError:
         print('There was an error connecting to MongoDB on localhost, unable to continue!')
         sys.exit(-1)

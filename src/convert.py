@@ -180,6 +180,17 @@ def main():
     client = pymongo.MongoClient()
     db = client.pgdb
     for filename in pg_funcs.get_files(sys.argv[1]):
+        # skip stuff that shouldnt be indexed
+        if ('readme' in filename or 
+                'index' in filename or 
+                'body' in filename or
+                'mac' in filename):
+            continue
+        # indexing utf files causes certain books to get indexed twice, skip them
+        if ('-0.txt' in filename or 
+                'utf8' in filename or 
+                'utf16' in filename):
+            continue
         t = EBookParser(filename)
         t.start()
         t.join()
