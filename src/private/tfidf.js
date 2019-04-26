@@ -1,8 +1,9 @@
 /* This aggregate function executes a tf-idf query over the entire books collection.
  */
-db.books.aggregate([ 
+db.books.aggregate([
     // this stage gets the document frequency
-    { $lookup: {
+    { $lookup: 
+        {
             from: "doc_freqs",
             localField: "bookid",
             foreignField: "bookid",
@@ -10,11 +11,39 @@ db.books.aggregate([
         }
     },
     // this stage converts the document frequency to a format we can work with
-    { $project: { bookid: "$bookid", "book_terms": { $arrayElemAt: [ "$joined_terms.terms", 0 ] } } },
-    { $project: { bookid: "$bookid", "book_terms": { $objectToArray: "$book_terms" } } },
-    // this stage gets the collection frequency, this is the bottleneck stage
-    // there has to be a way to optimize it
-    { $lookup: {
+    { $project: 
+        { 
+            bookid: "$bookid", 
+            filepath: "$filepath",
+            book_terms: { 
+                $filter: {
+                    input: { $objectToArray: { $arrayElemAt: [ "$joined_terms.terms", 0 ] } },
+                    as: "term_freq",
+                    cond: { $in: ["$$term_freq.k", ['a', 'aa', 'aaa'] ] }
+                }
+            }
+        } 
+    },
+    // I shouldnt have had to do this, but I'm relatively certain this is the only 
+    //  way I can in MongoDB, have to reproject the stuff above with the same values
+    //  plus a count of the book terms
+    { $project: 
+        { 
+            bookid: "$bookid", 
+            filepath: "$filepath",
+            book_terms: "$book_terms",
+            count: { $size: "$book_terms" }
+        } 
+    },
+    // filter out the documents that do not have any matching book terms
+    { $match: 
+        {
+            count: {$gt: 0}
+        } 
+    },
+    // this stage joins the collection frequency to the doc frequency
+    { $lookup: 
+        {
             from: "coll_freqs",
             localField: "book_terms.k",
             foreignField: "_id",
@@ -22,13 +51,27 @@ db.books.aggregate([
         }
     },
     // this stage replaces each document with an array of terms, an array of document freqs, and an array of collection freqs
-    { $replaceRoot: { newRoot: { bookid: "$bookid", terms: "$book_terms.k", dfs: "$book_terms.v", cfs: "$tfd_index.value" } } },
+    { $replaceRoot: 
+        { newRoot: 
+            { 
+                bookid: "$bookid", 
+                filepath: "$filepath", 
+                terms: "$book_terms.k", dfs: "$book_terms.v", cfs: "$tfd_index.count" 
+            } 
+        } 
+    },
     // zips all three arrays above into a single array containing arrays with three elements
-    { $project: { bookid: "$bookid", index: { $zip: {inputs: ["$terms", "$dfs", "$cfs"] } } } },
+    { $project: { 
+            bookid: "$bookid", 
+            filepath: "$filepath", 
+            index: { $zip: {inputs: ["$terms", "$dfs", "$cfs"] } } 
+        } 
+    },
     // perform the tf.idf on the array above
     // TODO: The bookid needs passed along all the way here
     { $project: 
         { bookid: "$bookid", 
+          filepath: "$filepath",
           tfidf: 
             { $map: 
                 {
