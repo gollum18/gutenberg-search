@@ -2,6 +2,7 @@ extends layout
 
 block content
   h1=title
-  for doc in docs
-    for k, v in doc.terms
-        p #{doc.bookid} #{v} #{k}
+  ul
+    each doc in docs
+      li 
+        a(href=doc.filepath) #{doc.title}

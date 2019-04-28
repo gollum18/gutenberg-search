@@ -32,7 +32,7 @@ function rank(stems) {
                 // this stage converts the document frequency to a format we can work with
                 { $project: 
                     { 
-                        bookid: "$bookid", 
+                        title: "$title", 
                         filepath: "$filepath",
                         book_terms: { 
                             $filter: {
@@ -48,7 +48,7 @@ function rank(stems) {
                 //  plus a count of the book terms
                 { $project: 
                     { 
-                        bookid: "$bookid", 
+                        title: "$title", 
                         filepath: "$filepath",
                         book_terms: "$book_terms",
                         count: { $size: "$book_terms" }
@@ -73,7 +73,7 @@ function rank(stems) {
                 { $replaceRoot: 
                     { newRoot: 
                         { 
-                            bookid: "$bookid", 
+                            title: "$title", 
                             filepath: "$filepath", 
                             terms: "$book_terms.k", dfs: "$book_terms.v", cfs: "$tfd_index.count" 
                         } 
@@ -81,7 +81,7 @@ function rank(stems) {
                 },
                 // zips all three arrays above into a single array containing arrays with three elements
                 { $project: { 
-                        bookid: "$bookid", 
+                        title: "$title", 
                         filepath: "$filepath", 
                         index: { $zip: {inputs: ["$terms", "$dfs", "$cfs"] } } 
                     } 
@@ -89,7 +89,7 @@ function rank(stems) {
                 // perform the tf.idf on the array above
                 // TODO: The bookid needs passed along all the way here
                 { $project: 
-                    { bookid: "$bookid", 
+                    { title: "$title", 
                       filepath: "$filepath",
                       tfidf: 
                         { $map: 
@@ -123,7 +123,7 @@ function rank(stems) {
                 // generate rankings for the pages
                 { $project: 
                     {
-                        bookid: "$bookid",
+                        title: "$title",
                         filepath: "$filepath",
                         ranking: { $reduce: {
                                 input: "$tfidf",
@@ -166,7 +166,7 @@ router.get('/search', function(req, res, next) {
     stemmed.sort();
     var promise = rank(stemmed);
     promise.then(function handleSearchResults(top100) {
-        console.log(top100);
+        // handle the search results
         res.render('search', { 
           title: 'Search Results',
           docs: top100
