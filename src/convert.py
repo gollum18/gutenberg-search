@@ -10,11 +10,11 @@ from threading import Thread
 
 import pg_funcs
 
+# Set this to a reasonable number for your system
+_MAX_THREADS = 1
+
 # create a trannslator for replacing punctuation with a space
 translator = str.maketrans({c:' ' for c in string.punctuation})
-
-# get a global stemmer object
-stemmer = snowballstemmer.stemmer('english')
 
 # create a stemming alphabet, characters in words not this string are 
 #   are filtered out before the word is stemmed
@@ -22,6 +22,7 @@ stemmer = snowballstemmer.stemmer('english')
 alphabet = string.ascii_lowercase
 
 # the various headers that appear in the ebook files
+#   maybe the better solution is to use a RegEx here but to be honest, I was never taught those (outside of what I learned myself) and this seems to work for now
 headers = {
     'Title: ': 'title',
     'Author: ': 'author',
@@ -51,8 +52,6 @@ headers = {
     'Produced by ': 'publisher'
 }
 
-
-
 '''
 Extracts the value from a line corresponding to a given key.
 '''
@@ -78,6 +77,7 @@ class EBookParser(Thread):
         #   these at that point
         self.book = dict()
         self.stems = []
+        self.stemmer = snowballstemmer.stemmer('english')
 
     '''
     Overridden run() method inherited from the Thread class. Does the 
@@ -142,7 +142,9 @@ class EBookParser(Thread):
                         # clean the word
                         word = ''.join([c for c in word if c in alphabet])
                         # add the word to the stems list
-                        self.stems.append(stemmer.stemWord(word))
+                        if not word.isspace():
+                            self.stems.append(
+                                self.stemmer.stemWord(word))
                 # ignore the footer
                 elif state == 2:
                     break
@@ -160,46 +162,82 @@ def print_help():
     print('-'*80)
     print('usage: python convert.py [dir]')
 
+def write_stem_file(filepath, stems):
+    '''
+    Writes stems to the file specified with filepath.
+    '''
+    if not filepath:
+        print('No filepath specified, stem file not written!')
+        return
+    if not stems:
+        print('No stems specified for file at,', filepath, 'stem file not written!')
+        return
+    try:
+        with open(filepath, 'w') as stemfile:
+            for stem in stems:
+                stemfile.write(stem)
+    except IOError:
+        print('IOError occurred while writing stem file for book at:', filepath, ', stem file not written.')
+
 '''
 Main method, called when the program executes.
-    root: the root directory that the ebook files are stored in
 '''
 def main():
     if len(sys.argv) < 2:
-        print('Error: You did not specify a directory for the eBooks!')
+        print('Error: Invalid number of arguments presented!')
         print_help()
-        sys.exit(22)
+        sys.exit(-1)
     if sys.argv[1] == '-h' or sys.argv[1] == '--help':
         print_help()
         sys.exit(0)
-    elif not os.path.isdir(sys.argv[1]):
-        print('Error: Specified file is not a directory!')
-        print_help()
-        sys.exit(2)
+    # create the stems output directory if needed
+    if not os.path.exists(os.path.join('data', 'stems')):
+        os.mkdir(os.path.join('data', 'stems'))
     # open mongodb client on default host and port
     client = pymongo.MongoClient()
     db = client.pgdb
-    for filename in pg_funcs.get_files(sys.argv[1]):
-        # skip stuff that shouldnt be indexed
-        if ('readme' in filename or 
-                'index' in filename or 
-                'body' in filename or
-                'mac' in filename):
-            continue
-        # indexing utf files causes certain books to get indexed twice, skip them
-        if ('-0.txt' in filename or 
-                'utf8' in filename or 
-                'utf16' in filename):
-            continue
-        t = EBookParser(filename)
+    if os.path.isdir(sys.argv[1]):
+        books_seen = set()
+        threads = []
+        for filename in pg_funcs.get_files(sys.argv[1]):
+            # skip stuff that shouldnt be indexed
+            if ('readme' in filename or 
+                    'index' in filename or 
+                    'body' in filename or
+                    'mac' in filename):
+                continue
+            # indexing utf files causes certain books to get indexed twice, skip them
+            if ('-0.txt' in filename or 
+                    'utf8' in filename or 
+                    'utf16' in filename):
+                continue
+            t = EBookParser(filename)
+            threads.append(t)
+            t.start()
+            # if at max threads, join the last thread and wait for it to finish
+            if len(threads) == _MAX_THREADS:
+                t.join()
+            # write out any threads that have ended
+            for thread in threads:
+                if not thread.is_alive():
+                    # deal with books weve already seen, somehow this is happening, must have a duplicate book or two somewhere, also deal with books that do not declare metadata
+                    if thread.book['bookid'] in books_seen or not thread.stems:
+                        continue
+                    # insert the book in the database
+                    db.books.insert_one(thread.book)
+                    # write the stem file to disk
+                    write_stem_file(os.path.join('data', 'stems', thread.book['bookid']+'.txt'), thread.stems)
+                    books_seen.add(thread.book['bookid'])
+            # reconstruct threads list with any threads that are still alive
+            threads = list(filter(lambda thread: thread.is_alive(), threads)) 
+    # otherwise parse a single file
+    elif os.path.isfile(sys.argv[1]) and sys.argv[1].endswith('.txt'):
+        t = EBookParser(sys.argv[1])
         t.start()
         t.join()
-        db.books.insert_one(t.book)
-        if not os.path.exists(os.path.join('data', 'stems')):
-            os.mkdir(os.path.join('data', 'stems'))
-        with open(os.path.join('data', 'stems', t.book['bookid']+'.txt'), 'w') as stemfile:
-            for stem in t.stems:
-                stemfile.write(stem)
+        client.insert_one(t.book)
+        # write the stem file to disk
+        write_stem_file(os.path.join('data', 'stems', t.book['bookid']+'.txt'), t.stems)
     client.close()
 
 if __name__ == '__main__':
