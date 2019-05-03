@@ -75,7 +75,9 @@ function rank(stems) {
                         { 
                             title: "$title", 
                             filepath: "$filepath", 
-                            terms: "$book_terms.k", dfs: "$book_terms.v", cfs: "$tfd_index.count" 
+                            terms: "$book_terms.k", 
+                            dfs: "$book_terms.v", 
+                            cfs: "$tfd_index.count" 
                         } 
                     } 
                 },
@@ -86,8 +88,7 @@ function rank(stems) {
                         index: { $zip: {inputs: ["$terms", "$dfs", "$cfs"] } } 
                     } 
                 },
-                // perform the tf.idf on the array above
-                // TODO: The bookid needs passed along all the way here
+                // perform the tf.idf calculation on the array above
                 { $project: 
                     { title: "$title", 
                       filepath: "$filepath",
@@ -97,25 +98,25 @@ function rank(stems) {
                                 input: "$index",
                                 as: "tfidf",
                                 in: { $multiply:
-                                        [ 
-                                            // this term is the tf
-                                            { $log10: { 
-                                                $add: [
-                                                    1, 
-                                                    { $arrayElemAt: [ "$$tfidf", 1 ] } 
-                                                ] } 
-                                            },
-                                            // this term is the idf
-                                            { $log10: { 
-                                                $divide: [
-                                                    // hard coded number of documents, best I can do for now
-                                                    // TODO: it should really be passed all the way to this stage too, like bookid
-                                                    9285, 
-                                                    { $add: [ 1, { $arrayElemAt: [ "$$tfidf", 2 ] } ] } 
-                                                ] } 
-                                            }
-                                        ] 
-                                    }
+                                    [ 
+                                        // this term is the tf
+                                        { $log10: { 
+                                            $add: [
+                                                1, 
+                                                { $arrayElemAt: [ "$$tfidf", 1 ] } 
+                                            ] } 
+                                        },
+                                        // this term is the idf
+                                        { $log10: { 
+                                            $divide: [
+                                                // hard coded number of documents, best I can do for now
+                                                // TODO: it should really be passed all the way to this stage too, like bookid
+                                                9256, 
+                                                { $add: [ 1, { $arrayElemAt: [ "$$tfidf", 2 ] } ] } 
+                                            ] } 
+                                        }
+                                    ] 
+                                }
                             }   
                         }
                     } 
